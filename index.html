@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Barcode Reader</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
+            overflow-x: hidden;
+        }
+        #interactive {
+            margin: 20px auto;
+            width: 100%;
+            max-width: 480px;
+            height: 360px;
+            border: 1px solid #ccc;
+            position: relative;
+        }
+        #results {
+            list-style-type: none;
+            padding: 0;
+            margin-top: 20px;
+        }
+        #results li {
+            font-size: 16px;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+        #scanButton {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        #scanButton:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #error {
+            color: red;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Mobile Barcode Reader</h1>
+    <button id="scanButton">Start Scanning</button>
+    <div id="error"></div>
+    <div id="interactive" class="viewport"></div>
+    <h2>Scanned Barcodes:</h2>
+    <ul id="results"></ul>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <script>
+        const scanButton = document.getElementById('scanButton');
+        const resultsList = document.getElementById('results');
+        const errorDiv = document.getElementById('error');
+        let scanning = false;
+        let results = [];
+
+        // Check for HTTPS
+        if (window.location.protocol !== 'https:') {
+            showError('This page must be served over HTTPS to access the camera.');
+            scanButton.disabled = true;
+        }
+
+        function showError(message) {
+            errorDiv.style.display = 'block';
+            errorDiv.textContent = `Error: ${message}`;
+        }
+
+        function clearError() {
+            errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
+        }
+
+        function onDetected(result) {
+            results.push(result);
+            updateResults();
+            // Optional: Stop after first scan
+            // stopScanning();
+        }
+
+        function updateResults() {
+            resultsList.innerHTML = '';
+            results.forEach((result, index) => {
+                const li = document.createElement('li');
+                li.textContent = `${result.codeResult.code} [${result.codeResult.format}]`;
+                resultsList.appendChild(li);
+            });
+        }
+
+        function startScanning() {
+            clearError();
+            scanning = true;
+            scanButton.textContent = 'Stop Scanning';
+            scanButton.disabled = false;
+
+            Quagga.init({
+                inputStream: {
+                    name: 'Live',
+                    type: 'LiveStream',
+                    target: document.querySelector('#interactive'),
+                    constraints: {
+                        width: 480, // Lower resolution for mobile
+                        height: 360
+                        // Remove facingMode to allow any camera
+                    }
+                },
+                locator: {
+                    patchSize: 'medium',
+                    halfSample: true
+                },
+                numOfWorkers: 0, // Single-threaded for mobile
+                decoder: {
+                    readers: ['ean_reader', 'upc_reader', 'code_128_reader', 'code_39_reader'] // Multiple barcode types
+                },
+                locate: true
+            }, function(err) {
+                if (err) {
+                    showError(err.message || 'Failed to access camera. Ensure permissions are granted.');
+                    stopScanning();
+                    return;
+                }
+                Quagga.start();
+            });
+
+            Quagga.onDetected(onDetected);
+        }
+
+        function stopScanning() {
+            scanning = false;
+            scanButton.textContent = 'Start Scanning';
+            Quagga.stop();
+            Quagga.offDetected(onDetected);
+        }
+
+        scanButton.addEventListener('click', () => {
+            if (scanning) {
+                stopScanning();
+            } else {
+                startScanning();
+            }
+        });
+    </script>
+</body>
+</html>
